@@ -69,6 +69,10 @@ def train_on_dataset(train_file, dev_file, test_file, config, log_dir, args):
     
     
     model = GLiDRE.from_pretrained(args.checkpoint)
+    model.config.loss_alpha = config.loss_alpha
+    model.config.loss = config.loss
+    model.config.loss_gamma = config.loss_gamma
+    model.config.loss_reduction = config.loss_reduction
 
     model.to(args.device)
     

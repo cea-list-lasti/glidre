@@ -66,6 +66,10 @@ if __name__ == '__main__':
     if config.checkpoint :
         model = GLiDRE.from_pretrained(config.checkpoint)
         model_config = model.config
+        model.config.loss_alpha = config.loss_alpha
+        model.config.loss = config.loss
+        model.config.loss_gamma = config.loss_gamma
+        model.config.loss_reduction = config.loss_reduction
     else :
         model_config = GLiDREConfig(model_name = config.model_name,
                                 labels_encoder = config.labels_encoder,  
@@ -82,21 +86,21 @@ if __name__ == '__main__':
                                 max_types= config.max_types,
                                 max_neg_type_ratio= config.max_neg_type_ratio,
                                 cross_attention = config.cross_attention,
-                                alpha = config.loss_alpha,
+                                loss_alpha = config.loss_alpha,
                                 loss = config.loss,
-                                gamma = config.loss_alpha,
-                                reduction = config.loss_reduction,
+                                loss_gamma = config.loss_gamma,
+                                loss_reduction = config.loss_reduction,
                                 self_rel = config.self_rel,
                                 pooling = config.pooling,
                                 weights = None if not config.weights else config.weights
                                    )
         model = GLiDRE(model_config)
+    print(model.config)
     model.to(device)
     if config.compile :
         torch.set_float32_matmul_precision('high')
         model.compile_for_training()
     model.train()
-    
     optimizer = create_optimizer(model, config)
     
     if config.pretrain:
@@ -134,23 +138,27 @@ if __name__ == '__main__':
             x = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in x.items()}
 
             if config.pretrain:
+                try :
                 #create bigger batch artificially to get negative samples but solve oom issues
-                subbatches = []
-                for i in range(config.train_batch_size):
-                    micro_batch = {}
-                    for k,v in x.items():
-                        if "labels_" not in k :
-                            micro_batch[k] = v[i].unsqueeze(0)
-                        else :
-                            micro_batch[k] = v
+                    subbatches = []
+                    for i in range(config.train_batch_size):
+                        micro_batch = {}
+                        for k,v in x.items():
+                            if "labels_" not in k :
+                                micro_batch[k] = v[i].unsqueeze(0)
+                            else :
+                                micro_batch[k] = v
 
-                    subbatches.append(micro_batch)
-                for micro_batch in subbatches:
-                    out  = model(**micro_batch)
-                    loss = out["loss"]
-                    if not torch.isnan(loss):
-                        loss = loss / (config.accumulation_steps * config.train_batch_size)
-                        loss.backward()
+                        subbatches.append(micro_batch)
+                    for micro_batch in subbatches:
+                        out  = model(**micro_batch)
+                        loss = out["loss"]
+                        if not torch.isnan(loss):
+                            loss = loss / (config.accumulation_steps * config.train_batch_size)
+                            loss.backward()
+                except :
+                    print("error, skipping batch")
+                    pass
 
             else :
                 out = model(**x)  

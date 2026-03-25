@@ -1,6 +1,5 @@
 from typing import Optional
 from transformers import PretrainedConfig, AutoConfig
-from transformers.models.auto import CONFIG_MAPPING
 
 class GLiDREConfig(PretrainedConfig):
     model_type = "glidre"
@@ -31,10 +30,10 @@ class GLiDREConfig(PretrainedConfig):
                  ent_token: str = "<<ENT>>",
                  sep_token:str = "<<SEP>>",
                  atlop:bool=True,
-                 alpha:float = 0.25,
+                 loss_alpha:float = 0.25,
                  loss:str = "",
-                 gamma:float= 2,
-                 reduction:str= "mean",
+                 loss_gamma:float= 2,
+                 loss_reduction:str= "mean",
                  self_rel:bool=True,
                  pooling:str = "mean",
                  weights=None,
@@ -67,10 +66,10 @@ class GLiDREConfig(PretrainedConfig):
         self.ent_token = ent_token
         self.sep_token = sep_token
         self.atlop = atlop
-        self.alpha = alpha
+        self.alpha = loss_alpha
         self.loss = loss
-        self.gamma = gamma
-        self.reduction = reduction
+        self.gamma = loss_gamma
+        self.reduction = loss_reduction
         self.self_rel = self_rel
         self.pooling = pooling
         self.weights = weights
@@ -78,4 +77,4 @@ class GLiDREConfig(PretrainedConfig):
 
 # Register the configuration
 from transformers import CONFIG_MAPPING
-CONFIG_MAPPING.update({"gliner": GLiDREConfig})
+CONFIG_MAPPING.update({"glidre": GLiDREConfig})

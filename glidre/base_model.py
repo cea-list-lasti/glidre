@@ -160,7 +160,7 @@ class BaseModel(ABC, nn.Module):
             loss = AFLoss(gamma_pos=gamma, gamma_neg = gamma)
             all_losses = loss(logits, labels, alpha = alpha, gamma = gamma)
         
-        if self.config.loss == "f1" :
+        elif self.config.loss == "f1" :
         
             all_losses = f1_loss_with_logits(logits, labels,
                                             alpha=alpha,
@@ -168,7 +168,7 @@ class BaseModel(ABC, nn.Module):
                                             label_smoothing=label_smoothing,
                                             weights = weights)
             
-        if self.config.loss == "both" :
+        elif self.config.loss == "both" :
             all_losses = focal_loss_with_logits(logits, labels,
                                             alpha=alpha,
                                             gamma=gamma,
@@ -178,7 +178,7 @@ class BaseModel(ABC, nn.Module):
                                             gamma=gamma,
                                             label_smoothing=label_smoothing,
                                             weights = weights)
-        if self.config.loss == "atloss" :
+        elif self.config.loss == "atloss" :
             loss = ATLoss()
             all_losses = loss(logits, labels, alpha = alpha, gamma = gamma)
         else :
@@ -226,7 +226,6 @@ class SpanModel(BaseModel):
         prompts_embedding, prompts_embedding_mask, words_embedding, mask = self.get_representations(input_ids, attention_mask, 
                                                                                 labels_embeddings, labels_input_ids, labels_attention_mask, 
                                                                                                                     text_lengths, words_mask)
-        print(span_mask)
         span_idx = span_idx*span_mask.unsqueeze(-1)
 
         span_rep = self.span_rep_layer(words_embedding, span_idx)
@@ -281,7 +280,7 @@ class SpanModel(BaseModel):
 
 class SpanPairModel(SpanModel):
     def __init__(self, config, encoder_from_pretrained):
-        super(SpanModel, self).__init__(config, encoder_from_pretrained)
+        super(SpanPairModel, self).__init__(config, encoder_from_pretrained)
         self.span_rep_layer = RelMarkerV0(hidden_size = config.hidden_size, 
                                            dropout = config.dropout,
                                            atlop = config.atlop,
