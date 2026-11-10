@@ -23,7 +23,7 @@ from glidre.training_utils import (
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-def evaluate(model, data, args, labels) :
+def evaluate(model, data, args, labels, ths=range(1,10)) :
     gc.collect()
     torch.cuda.empty_cache()
     model.eval()
@@ -46,11 +46,11 @@ def evaluate(model, data, args, labels) :
         gold.extend([row["relations"] for row in batch_dev])
     best_f1 = 0
     best_th = 0.1
-    for th in range(1,10):
+    for th in ths :
         pred_converted  = [convert_to_target_format(prediction,  th/10) for prediction in pred]
         scores = calculate_f1_scores(gold, pred_converted)
         print(th/10, ":", scores['micro_scores']['f_score'])
-        if scores['micro_scores']['f_score'] > best_f1 :
+        if scores['micro_scores']['f_score'] >= best_f1 :
             best_th = th/10
             best_f1 = scores['micro_scores']['f_score']
             best_scores = scores
@@ -69,10 +69,6 @@ def train_on_dataset(train_file, dev_file, test_file, config, log_dir, args):
     
     
     model = GLiDRE.from_pretrained(args.checkpoint)
-    model.config.loss_alpha = config.loss_alpha
-    model.config.loss = config.loss
-    model.config.loss_gamma = config.loss_gamma
-    model.config.loss_reduction = config.loss_reduction
 
     model.to(args.device)
     
@@ -142,9 +138,10 @@ def train_on_dataset(train_file, dev_file, test_file, config, log_dir, args):
             model.train()
             if current_f1 > best_f1:
                 best_f1 = current_f1
-                test_f1, best_metrics, best_th = evaluate(model, test_data, args, labels)
+                test_f1, best_metrics, best_th = evaluate(model, test_data, args, labels, ths=[round(th*10)])
                 patience_counter = 0
                 model.save_pretrained(os.path.join(args.log_dir, f"best_model_{os.path.splitext(filename)[0]}"))
+                model.train()
             else:
                 patience_counter += 1
             

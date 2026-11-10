@@ -29,9 +29,10 @@ if __name__ == '__main__':
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     if not args.tokenized : 
         test = pd.read_csv(args.test)
-        test = preprocess(test)
+        test = preprocess(test).to_dict("records")
         train = pd.read_csv(args.train)
-        train = preprocess(train)
+        train = preprocess(train).to_dict("records")
+        args.tokenized = True
     
     else :
         with open(args.train) as f :

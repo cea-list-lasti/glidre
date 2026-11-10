@@ -33,12 +33,12 @@ def extract_word_embeddings(token_embeds, attentions, words_mask, attention_mask
 
     words_embedding[batch_indices, target_word_idx] = token_embeds[batch_indices, word_idx]
     words_attention[batch_indices, :, target_word_idx, :] = attentions[batch_indices, :, word_idx, :]
-    words_attention_2[:,:,:, target_word_idx] = words_attention[:,:,:, word_idx]
+    words_attention_2[batch_indices,:,:, target_word_idx] = words_attention[batch_indices,:,:, word_idx]
     
     aranged_word_idx = torch.arange(max_text_length, 
                                         dtype=attention_mask.dtype, 
                                         device=token_embeds.device).expand(batch_size, -1)
-    word_mask = aranged_word_idx < text_lengths.unsqueeze(-1)
+    word_mask = aranged_word_idx < text_lengths.view(-1, 1)
     return words_embedding, words_attention_2, word_mask
 
 class BaseModel(ABC, nn.Module):
@@ -342,7 +342,8 @@ class SpanPairModel(SpanModel):
                 labels = torch.cat([zeros, labels], dim=-1)
         else:
             scores = torch.einsum("BLD,BCD->BLC", rel_rep, prompts_embedding)
-            
+
+        kwargs["pair_mask"] = (rel_idx != -1).flatten(2).any(-1)[..., None]
         if labels is not None:
             if self.config.weights is not None:
                 loss = self.loss(scores, labels, prompts_embedding_mask, alpha=self.config.alpha, gamma = self.config.gamma, reduction = self.config.reduction, weights = torch.tensor(self.config.weights, dtype=float).to(labels.device), **kwargs)
@@ -371,8 +372,10 @@ class SpanPairModel(SpanModel):
         scores = scores.view(-1, num_classes)
         labels = labels.view(-1, num_classes)
         all_losses = self._loss(scores, labels, alpha, gamma, label_smoothing, weights)
+        if all_losses.dim() == 0:
+            return all_losses
 
-        masked_loss = all_losses.view(batch_size, -1, num_classes) #* prompts_embedding_mask.unsqueeze(1)
+        masked_loss = all_losses.view(batch_size, -1, num_classes) * kwargs["pair_mask"] #* prompts_embedding_mask.unsqueeze(1)
         all_losses = masked_loss.view(-1, num_classes)
 
         all_losses = all_losses 

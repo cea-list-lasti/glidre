@@ -66,10 +66,10 @@ class GLiDREConfig(PretrainedConfig):
         self.ent_token = ent_token
         self.sep_token = sep_token
         self.atlop = atlop
-        self.alpha = loss_alpha
         self.loss = loss
-        self.gamma = loss_gamma
-        self.reduction = loss_reduction
+        self.alpha = kwargs.get("alpha", loss_alpha)
+        self.gamma = kwargs.get("gamma", loss_gamma)
+        self.reduction = kwargs.get("reduction", loss_reduction)
         self.self_rel = self_rel
         self.pooling = pooling
         self.weights = weights

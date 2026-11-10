@@ -22,7 +22,7 @@ Here's a simple Python example to get you started:
 ```python
 from glidre import GLiDRE
 
-model = GLiDRE.from_pretrained("cea-list-ia/glidre_large")
+model = GLiDRE.from_pretrained("cea-list-ia/glidre_large_v2")
 
 text = "The Loud Tour was the fourth overall and third world concert tour by Barbadian recording artist Rihanna."
 

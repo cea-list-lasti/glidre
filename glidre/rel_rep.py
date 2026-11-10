@@ -18,6 +18,55 @@ class RelMarkerV0(nn.Module):
         self.projection = create_projection_layer(hidden_size * 2, dropout, hidden_size)
 
     def forward(self, h: torch.Tensor, rel_idx: torch.Tensor, attentions: torch.Tensor) -> torch.Tensor:
+        if self.pooling == "mean" and self.self_rel:
+            return self._forward_per_entity(h, rel_idx, attentions)
+        return self._forward_pairwise(h, rel_idx, attentions)
+
+    def _forward_per_entity(self, h: torch.Tensor, rel_idx: torch.Tensor, attentions: torch.Tensor) -> torch.Tensor:
+        """
+        Same output as _forward_pairwise (mean pooling, self_rel), but each entity is pooled once instead of once per
+        pair, with a [B, E, L] pooling matrix and matmuls: the cost grows in E instead of E^2 * mentions * width.
+        Pair p of a document with E_b entities is (p // E_b, p % E_b), as built by SpanPairBiEncoderProcessor.
+        """
+        B, L, D = h.size()
+        R = rel_idx.size(1)
+        pair_valid = (rel_idx != -1).flatten(2).any(-1)                                  # [B, R]
+        n_ent = pair_valid.sum(1).float().sqrt().round().long()                          # [B] = E_b
+        E = max(int(n_ent.max()), 1)
+        ent = torch.arange(E, device=h.device)
+        rows = (ent[None] * n_ent[:, None]).clamp(max=R - 1)                             # pair (i, 0) of entity i
+        ent_idx = rel_idx[torch.arange(B, device=h.device)[:, None], rows, 0]           # [B, E, M, 2]
+        ent_idx = ent_idx.masked_fill((ent[None] >= n_ent[:, None])[..., None, None], -1)
+
+        start, end = ent_idx[..., 0], ent_idx[..., 1]
+        valid = (start != -1) & (end != -1) & (start <= L - 1)
+        start, end = start.clamp(0, L - 1), end.clamp(0, L - 1)
+        lengths = (end - start + 1) * valid                                              # [B, E, M]
+        offsets = torch.arange(max(int(lengths.max()), 1), device=h.device)
+        span_mask = (offsets < lengths[..., None]) & valid[..., None]                    # [B, E, M, S]
+        positions = ((start[..., None] + offsets) * span_mask).clamp(0, L - 1)
+        pool = torch.zeros(B, E, L, device=h.device, dtype=h.dtype)
+        pool.scatter_add_(2, positions.flatten(2), span_mask.flatten(2).to(h.dtype))
+        pool = pool / (lengths.sum(-1, keepdim=True).to(h.dtype) + 1e-7)               # [B, E, L]
+
+        pair = torch.arange(R, device=h.device)[None]
+        n = n_ent.clamp(min=1)[:, None]
+        heads, tails = (pair // n).clamp(max=E - 1), pair % n                            # [B, R]
+        keep = pair_valid[..., None].to(h.dtype)
+        pick = lambda x, idx: x.gather(1, idx[..., None].expand(-1, -1, x.size(-1))) * keep
+        ent_reps = torch.bmm(pool, h)                                                    # [B, E, D]
+        head_reps, tail_reps = pick(ent_reps, heads), pick(ent_reps, tails)
+        if not self.atlop:
+            return self.projection(torch.cat([head_reps, tail_reps], dim=-1))
+        ent_att = torch.bmm(pool, attentions.mean(dim=-3))                               # [B, E, L]
+        weights = pick(ent_att, heads) * pick(ent_att, tails)
+        weights = weights / (weights.sum(-1, keepdim=True) + 1e-5)
+        context = torch.bmm(weights, h)                                                  # [B, R, D]
+        head = torch.tanh(self.head_extractor(torch.cat([head_reps, context], dim=-1)))
+        tail = torch.tanh(self.tail_extractor(torch.cat([tail_reps, context], dim=-1)))
+        return self.projection(torch.cat([head, tail], dim=-1))
+
+    def _forward_pairwise(self, h: torch.Tensor, rel_idx: torch.Tensor, attentions: torch.Tensor) -> torch.Tensor:
         """
         h: [B, L, D] - Hidden states from the encoder.
         rel_idx: [B, num_rel, 2, n_max_mentions, 2] - Start and end indices of mentions for an entity.

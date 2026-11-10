@@ -87,6 +87,8 @@ class GLiDRE(nn.Module, PyTorchModelHubMixin):
             texts (str): The input text or texts to process.
             labels (str): The corresponding labels for the input texts.
         """
+        if mentions is None: 
+            raise ValueError("GLiDRE requires entity mentions")
         all_tokens = []
         all_start_token_idx_to_text_idx = []
         all_end_token_idx_to_text_idx = []
@@ -113,6 +115,8 @@ class GLiDRE(nn.Module, PyTorchModelHubMixin):
 
         if mentions is not None :
             for i, x in enumerate(input_x):
+                start_text_to_token_idx = {s: j for j, s in enumerate(all_start_token_idx_to_text_idx[i])}
+                end_text_to_token_idx = {e: j for j, e in enumerate(all_end_token_idx_to_text_idx[i])}
                 mentions_x = []
                 for mention in mentions[i]:
                     mention_indexed = {"id" : mention["id"], "mentions": []}
@@ -208,7 +212,8 @@ class GLiDRE(nn.Module, PyTorchModelHubMixin):
         Returns:
             The list of lists with predicted entities.
         """
-
+        if mentions is None: 
+            raise ValueError("GLiDRE requires entity mentions")
         model_input, raw_batch = self.prepare_model_inputs(texts, labels, mentions)
         model_output = self.model(**model_input)[0]
         if not isinstance(model_output, torch.Tensor):
@@ -268,7 +273,8 @@ class GLiDRE(nn.Module, PyTorchModelHubMixin):
                         "end": end_text_idx,
                         "text": span_text
                     })
-                
+                if not (entity_1_spans and entity_2_spans): 
+                    continue
                 relations.append({
                     "entity_1": entity_1_spans,
                     "entity_2": entity_2_spans,
@@ -301,6 +307,8 @@ class GLiDRE(nn.Module, PyTorchModelHubMixin):
     def batch_predict_tokenized_entities(
         self, tokenized_texts, labels, threshold=0.5, multi_label=False, mentions = None, top_k = 100000, constraints=None
     ):
+        if mentions is None: 
+            raise ValueError("GLiDRE requires entity mentions")
         labels = list(dict.fromkeys(labels))
 
         class_to_ids = {k: v for v, k in enumerate(labels, start=1)}

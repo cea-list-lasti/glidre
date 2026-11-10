@@ -66,10 +66,11 @@ if __name__ == '__main__':
     if config.checkpoint :
         model = GLiDRE.from_pretrained(config.checkpoint)
         model_config = model.config
-        model.config.loss_alpha = config.loss_alpha
+        model.config.alpha = config.loss_alpha
+        assert config.loss == model.config.loss, "threshold_layer absent ou en trop dans le checkpoint"
         model.config.loss = config.loss
-        model.config.loss_gamma = config.loss_gamma
-        model.config.loss_reduction = config.loss_reduction
+        model.config.gamma = config.loss_gamma
+        model.config.reduction = config.loss_reduction
     else :
         model_config = GLiDREConfig(model_name = config.model_name,
                                 labels_encoder = config.labels_encoder,  
@@ -141,7 +142,7 @@ if __name__ == '__main__':
                 try :
                 #create bigger batch artificially to get negative samples but solve oom issues
                     subbatches = []
-                    for i in range(config.train_batch_size):
+                    for i in range(x["input_ids"].shape[0]):
                         micro_batch = {}
                         for k,v in x.items():
                             if "labels_" not in k :
@@ -156,7 +157,7 @@ if __name__ == '__main__':
                         if not torch.isnan(loss):
                             loss = loss / (config.accumulation_steps * config.train_batch_size)
                             loss.backward()
-                except :
+                except torch.cuda.OutOfMemoryError:
                     print("error, skipping batch")
                     pass
 
@@ -210,6 +211,7 @@ if __name__ == '__main__':
                 best_global_th = best_th
                 best_f1 = eval_f1
                 model.save_pretrained(config.save_path + "/best_model")
+                json.dump({"threshold": best_th}, open(config.save_path + "/best_model/threshold.json", "w"))
                 with open(config.save_path + "/best_model/metrics_dev_th_"+str(best_th)+"_step_"+str(step+1)+".txt", "w") as file:
                     file.write(format_results(current_scores))
             model.train()  
