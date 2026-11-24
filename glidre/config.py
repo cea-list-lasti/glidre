@@ -1,6 +1,9 @@
 from typing import Optional
 from transformers import PretrainedConfig, AutoConfig
 
+LABELS_ENCODER_REVISIONS = {"Alibaba-NLP/gte-multilingual-base": "9bbca17d9273fd0d03d5725c7a4b0f6b45142062"}
+
+
 class GLiDREConfig(PretrainedConfig):
     model_type = "glidre"
     is_composition = True
@@ -38,11 +41,13 @@ class GLiDREConfig(PretrainedConfig):
                  pooling:str = "mean",
                  weights=None,
                  cross_attention=False,
+                 labels_encoder_revision=None,
                  **kwargs):
         super().__init__(**kwargs)
 
         self.encoder_config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-        self.labels_encoder_config = AutoConfig.from_pretrained(labels_encoder, trust_remote_code=True) 
+        self.labels_encoder_revision = labels_encoder_revision or LABELS_ENCODER_REVISIONS.get(labels_encoder)
+        self.labels_encoder_config = AutoConfig.from_pretrained(labels_encoder, trust_remote_code=True, revision=self.labels_encoder_revision)
         self.model_name = model_name
         self.labels_encoder = labels_encoder
         self.name = name

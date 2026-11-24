@@ -53,7 +53,7 @@ class GLiDRE(nn.Module, PyTorchModelHubMixin):
             self.model = model
         if data_processor is None:
             if config.labels_encoder is not None:
-                labels_tokenizer = AutoTokenizer.from_pretrained(config.labels_encoder, add_prefix_space=True)
+                labels_tokenizer = AutoTokenizer.from_pretrained(config.labels_encoder, add_prefix_space=True, revision=config.labels_encoder_revision)
                 self.data_processor = SpanPairBiEncoderProcessor(config, tokenizer, words_splitter, labels_tokenizer)
             else:
                 self.data_processor = SpanProcessor(config, tokenizer, words_splitter)

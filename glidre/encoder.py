@@ -65,7 +65,8 @@ class Transformer(nn.Module):
             ModelClass = AutoModel
 
         if from_pretrained:
-            self.model = ModelClass.from_pretrained(model_name, trust_remote_code=True)
+            revision = config.labels_encoder_revision if labels_encoder else None
+            self.model = ModelClass.from_pretrained(model_name, trust_remote_code=True, revision=revision)
         else:
             if not custom:
                 self.model = ModelClass.from_config(encoder_config, trust_remote_code=True)
